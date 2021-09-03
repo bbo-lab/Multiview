@@ -10,6 +10,9 @@ QMAKE_LFLAGS +=  -fopenmp -g
 
 INCLUDEPATH += .
 OBJECTS_DIR = ../object
+
+CONFIG += c++17
+QMAKE_CXXFLAGS += -std=c++17
 # The following define makes your compiler warn you if you use any
 # feature of Qt which has been marked as deprecated (the exact warnings
 # depend on your compiler). Please consult the documentation of the
@@ -40,7 +43,7 @@ HEADERS += src/control_ui.h \
            src/shader.h \
            src/transformation.h \
            src/util.h
-FORMS += src/testdialog.ui ui/control_ui.ui
+FORMS += ui/control_ui.ui
 SOURCES += src/control_window.cpp \
            src/data.cpp \
            src/geometry.cpp \
@@ -58,5 +61,7 @@ SOURCES += src/control_window.cpp \
            src/transformation.cpp \
            src/util.cpp\
            src/rendering_view.cpp\
-           src/qt_gl_util.cpp
-LIBS += -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf -ldl -lboost_system -lboost_filesystem -lQt5Widgets -lstdc++fs -lpng
+           src/qt_gl_util.cpp\
+           src/python_binding.cpp
+LIBS +=  -L/usr/include/x86_64-linux-gnu/python3.8/ -L/usr/include/python3.8/ -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf -ldl -lboost_system -lboost_filesystem -lQt5Widgets -lstdc++fs -lpng -lEGL -lpython3.8 -lboost_graph -lboost_numpy38 -lboost_python38 -lboost_system -lboost_filesystem
+INCLUDEPATH += /usr/include/python3.8/ /usr/include/x86_64-linux-gnu/python3.8/

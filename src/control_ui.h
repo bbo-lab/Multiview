@@ -19,10 +19,12 @@
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
+#include <QtWidgets/QMenu>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QOpenGLWidget>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSlider>
+#include <QtWidgets/QSplitter>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QTableView>
 #include <QtWidgets/QWidget>
@@ -33,6 +35,12 @@ class Ui_ControlWindow
 {
 public:
     QAction *actionTest;
+    QAction *actionMesh;
+    QAction *actionAnimation;
+    QAction *actionFramelist;
+    QAction *actionScreenshot;
+    QAction *actionExit;
+    QAction *actionCamera;
     QWidget *centralwidget;
     QFrame *frame;
     QCheckBox *flowShow;
@@ -55,13 +63,16 @@ public:
     QLineEdit *depthScaleText;
     QLabel *label_25;
     QFrame *frame_3;
+    QSplitter *splitter_2;
     QLabel *label_5;
     QCheckBox *renderedShow;
     QCheckBox *renderedVisibility;
     QFrame *frame_4;
+    QSplitter *splitter_3;
     QLabel *label_6;
     QCheckBox *indexShow;
     QFrame *frame_5;
+    QSplitter *splitter;
     QLabel *label_7;
     QCheckBox *positionShow;
     QCheckBox *positionShowCurser;
@@ -124,14 +135,20 @@ public:
     QCheckBox *checkBoxDebug;
     QCheckBox *checkBoxApproximated;
     QFrame *frame_11;
+    QSplitter *splitter_4;
     QLabel *label_26;
     QCheckBox *visibilityShow;
     QTableView *cameraTableView;
     QTableView *meshTableView;
     QFrame *frame_12;
+    QSplitter *splitter_5;
     QLabel *label_30;
     QCheckBox *framelistsShow;
     QMenuBar *menubar;
+    QMenu *menuFile;
+    QMenu *menuImport;
+    QMenu *menuExport;
+    QMenu *menuScripts;
     QStatusBar *statusbar;
 
     void setupUi(QMainWindow *ControlWindow)
@@ -141,6 +158,18 @@ public:
         ControlWindow->resize(469, 738);
         actionTest = new QAction(ControlWindow);
         actionTest->setObjectName(QString::fromUtf8("actionTest"));
+        actionMesh = new QAction(ControlWindow);
+        actionMesh->setObjectName(QString::fromUtf8("actionMesh"));
+        actionAnimation = new QAction(ControlWindow);
+        actionAnimation->setObjectName(QString::fromUtf8("actionAnimation"));
+        actionFramelist = new QAction(ControlWindow);
+        actionFramelist->setObjectName(QString::fromUtf8("actionFramelist"));
+        actionScreenshot = new QAction(ControlWindow);
+        actionScreenshot->setObjectName(QString::fromUtf8("actionScreenshot"));
+        actionExit = new QAction(ControlWindow);
+        actionExit->setObjectName(QString::fromUtf8("actionExit"));
+        actionCamera = new QAction(ControlWindow);
+        actionCamera->setObjectName(QString::fromUtf8("actionCamera"));
         centralwidget = new QWidget(ControlWindow);
         centralwidget->setObjectName(QString::fromUtf8("centralwidget"));
         frame = new QFrame(centralwidget);
@@ -221,40 +250,52 @@ public:
         frame_3->setGeometry(QRect(290, 100, 101, 81));
         frame_3->setFrameShape(QFrame::StyledPanel);
         frame_3->setFrameShadow(QFrame::Raised);
-        label_5 = new QLabel(frame_3);
+        splitter_2 = new QSplitter(frame_3);
+        splitter_2->setObjectName(QString::fromUtf8("splitter_2"));
+        splitter_2->setGeometry(QRect(10, 10, 73, 63));
+        splitter_2->setOrientation(Qt::Vertical);
+        label_5 = new QLabel(splitter_2);
         label_5->setObjectName(QString::fromUtf8("label_5"));
-        label_5->setGeometry(QRect(10, 10, 67, 17));
-        renderedShow = new QCheckBox(frame_3);
+        splitter_2->addWidget(label_5);
+        renderedShow = new QCheckBox(splitter_2);
         renderedShow->setObjectName(QString::fromUtf8("renderedShow"));
-        renderedShow->setGeometry(QRect(10, 30, 61, 23));
-        renderedVisibility = new QCheckBox(frame_3);
+        splitter_2->addWidget(renderedShow);
+        renderedVisibility = new QCheckBox(splitter_2);
         renderedVisibility->setObjectName(QString::fromUtf8("renderedVisibility"));
-        renderedVisibility->setGeometry(QRect(10, 50, 91, 23));
+        splitter_2->addWidget(renderedVisibility);
         frame_4 = new QFrame(centralwidget);
         frame_4->setObjectName(QString::fromUtf8("frame_4"));
         frame_4->setGeometry(QRect(210, 100, 71, 81));
         frame_4->setFrameShape(QFrame::StyledPanel);
         frame_4->setFrameShadow(QFrame::Raised);
-        label_6 = new QLabel(frame_4);
+        splitter_3 = new QSplitter(frame_4);
+        splitter_3->setObjectName(QString::fromUtf8("splitter_3"));
+        splitter_3->setGeometry(QRect(10, 10, 57, 40));
+        splitter_3->setOrientation(Qt::Vertical);
+        label_6 = new QLabel(splitter_3);
         label_6->setObjectName(QString::fromUtf8("label_6"));
-        label_6->setGeometry(QRect(10, 10, 51, 17));
-        indexShow = new QCheckBox(frame_4);
+        splitter_3->addWidget(label_6);
+        indexShow = new QCheckBox(splitter_3);
         indexShow->setObjectName(QString::fromUtf8("indexShow"));
-        indexShow->setGeometry(QRect(10, 30, 61, 23));
+        splitter_3->addWidget(indexShow);
         frame_5 = new QFrame(centralwidget);
         frame_5->setObjectName(QString::fromUtf8("frame_5"));
         frame_5->setGeometry(QRect(120, 100, 81, 81));
         frame_5->setFrameShape(QFrame::StyledPanel);
         frame_5->setFrameShadow(QFrame::Raised);
-        label_7 = new QLabel(frame_5);
+        splitter = new QSplitter(frame_5);
+        splitter->setObjectName(QString::fromUtf8("splitter"));
+        splitter->setGeometry(QRect(10, 10, 63, 63));
+        splitter->setOrientation(Qt::Vertical);
+        label_7 = new QLabel(splitter);
         label_7->setObjectName(QString::fromUtf8("label_7"));
-        label_7->setGeometry(QRect(10, 10, 67, 17));
-        positionShow = new QCheckBox(frame_5);
+        splitter->addWidget(label_7);
+        positionShow = new QCheckBox(splitter);
         positionShow->setObjectName(QString::fromUtf8("positionShow"));
-        positionShow->setGeometry(QRect(10, 30, 71, 23));
-        positionShowCurser = new QCheckBox(frame_5);
+        splitter->addWidget(positionShow);
+        positionShowCurser = new QCheckBox(splitter);
         positionShowCurser->setObjectName(QString::fromUtf8("positionShowCurser"));
-        positionShowCurser->setGeometry(QRect(10, 50, 71, 23));
+        splitter->addWidget(positionShowCurser);
         frame_6 = new QFrame(centralwidget);
         frame_6->setObjectName(QString::fromUtf8("frame_6"));
         frame_6->setGeometry(QRect(230, 490, 201, 121));
@@ -470,12 +511,16 @@ public:
         frame_11->setGeometry(QRect(400, 100, 71, 81));
         frame_11->setFrameShape(QFrame::StyledPanel);
         frame_11->setFrameShadow(QFrame::Raised);
-        label_26 = new QLabel(frame_11);
+        splitter_4 = new QSplitter(frame_11);
+        splitter_4->setObjectName(QString::fromUtf8("splitter_4"));
+        splitter_4->setGeometry(QRect(10, 10, 57, 40));
+        splitter_4->setOrientation(Qt::Vertical);
+        label_26 = new QLabel(splitter_4);
         label_26->setObjectName(QString::fromUtf8("label_26"));
-        label_26->setGeometry(QRect(10, 10, 61, 17));
-        visibilityShow = new QCheckBox(frame_11);
+        splitter_4->addWidget(label_26);
+        visibilityShow = new QCheckBox(splitter_4);
         visibilityShow->setObjectName(QString::fromUtf8("visibilityShow"));
-        visibilityShow->setGeometry(QRect(10, 30, 61, 23));
+        splitter_4->addWidget(visibilityShow);
         cameraTableView = new QTableView(centralwidget);
         cameraTableView->setObjectName(QString::fromUtf8("cameraTableView"));
         cameraTableView->setGeometry(QRect(220, 190, 231, 101));
@@ -487,22 +532,45 @@ public:
         frame_12->setGeometry(QRect(350, 300, 101, 61));
         frame_12->setFrameShape(QFrame::StyledPanel);
         frame_12->setFrameShadow(QFrame::Raised);
-        label_30 = new QLabel(frame_12);
+        splitter_5 = new QSplitter(frame_12);
+        splitter_5->setObjectName(QString::fromUtf8("splitter_5"));
+        splitter_5->setGeometry(QRect(10, 10, 58, 40));
+        splitter_5->setOrientation(Qt::Vertical);
+        label_30 = new QLabel(splitter_5);
         label_30->setObjectName(QString::fromUtf8("label_30"));
-        label_30->setGeometry(QRect(10, 10, 67, 17));
-        framelistsShow = new QCheckBox(frame_12);
+        splitter_5->addWidget(label_30);
+        framelistsShow = new QCheckBox(splitter_5);
         framelistsShow->setObjectName(QString::fromUtf8("framelistsShow"));
-        framelistsShow->setGeometry(QRect(10, 30, 71, 23));
+        splitter_5->addWidget(framelistsShow);
         ControlWindow->setCentralWidget(centralwidget);
         menubar = new QMenuBar(ControlWindow);
         menubar->setObjectName(QString::fromUtf8("menubar"));
-        menubar->setGeometry(QRect(0, 0, 469, 22));
+        menubar->setGeometry(QRect(0, 0, 469, 20));
+        menuFile = new QMenu(menubar);
+        menuFile->setObjectName(QString::fromUtf8("menuFile"));
+        menuImport = new QMenu(menuFile);
+        menuImport->setObjectName(QString::fromUtf8("menuImport"));
+        menuExport = new QMenu(menuFile);
+        menuExport->setObjectName(QString::fromUtf8("menuExport"));
+        menuScripts = new QMenu(menubar);
+        menuScripts->setObjectName(QString::fromUtf8("menuScripts"));
         ControlWindow->setMenuBar(menubar);
         statusbar = new QStatusBar(ControlWindow);
         statusbar->setObjectName(QString::fromUtf8("statusbar"));
         ControlWindow->setStatusBar(statusbar);
         QWidget::setTabOrder(buttonBackward, buttonStop);
         QWidget::setTabOrder(buttonStop, buttonForward);
+
+        menubar->addAction(menuFile->menuAction());
+        menubar->addAction(menuScripts->menuAction());
+        menuFile->addAction(menuImport->menuAction());
+        menuFile->addAction(menuExport->menuAction());
+        menuFile->addAction(actionExit);
+        menuImport->addAction(actionMesh);
+        menuImport->addAction(actionAnimation);
+        menuImport->addAction(actionFramelist);
+        menuImport->addAction(actionCamera);
+        menuExport->addAction(actionScreenshot);
 
         retranslateUi(ControlWindow);
         QObject::connect(buttonForward, SIGNAL(clicked()), ControlWindow, SLOT(playForward()));
@@ -553,6 +621,11 @@ public:
         QObject::connect(generalSmoothingText, SIGNAL(textChanged(QString)), ControlWindow, SLOT(smoothing(QString)));
         QObject::connect(flowPastText, SIGNAL(textChanged(QString)), ControlWindow, SLOT(past(QString)));
         QObject::connect(flowFutureText, SIGNAL(textChanged(QString)), ControlWindow, SLOT(future(QString)));
+        QObject::connect(actionMesh, SIGNAL(triggered()), ControlWindow, SLOT(importMesh()));
+        QObject::connect(actionExit, SIGNAL(triggered()), ControlWindow, SLOT(exit()));
+        QObject::connect(actionFramelist, SIGNAL(triggered()), ControlWindow, SLOT(importFramelist()));
+        QObject::connect(actionCamera, SIGNAL(triggered()), ControlWindow, SLOT(addCamera()));
+        QObject::connect(actionAnimation, SIGNAL(triggered()), ControlWindow, SLOT(importAnimation()));
 
         QMetaObject::connectSlotsByName(ControlWindow);
     } // setupUi
@@ -561,6 +634,12 @@ public:
     {
         ControlWindow->setWindowTitle(QApplication::translate("ControlWindow", "MainWindow", nullptr));
         actionTest->setText(QApplication::translate("ControlWindow", "Test", nullptr));
+        actionMesh->setText(QApplication::translate("ControlWindow", "Mesh", nullptr));
+        actionAnimation->setText(QApplication::translate("ControlWindow", "Animation", nullptr));
+        actionFramelist->setText(QApplication::translate("ControlWindow", "Framelist", nullptr));
+        actionScreenshot->setText(QApplication::translate("ControlWindow", "Screenshot", nullptr));
+        actionExit->setText(QApplication::translate("ControlWindow", "Exit", nullptr));
+        actionCamera->setText(QApplication::translate("ControlWindow", "Camera", nullptr));
         flowShow->setText(QApplication::translate("ControlWindow", "Show", nullptr));
         flowArrowsShow->setText(QApplication::translate("ControlWindow", "Arrows", nullptr));
         label->setText(QApplication::translate("ControlWindow", "Flow", nullptr));
@@ -651,6 +730,10 @@ public:
         visibilityShow->setText(QApplication::translate("ControlWindow", "Show", nullptr));
         label_30->setText(QApplication::translate("ControlWindow", "Framelists", nullptr));
         framelistsShow->setText(QApplication::translate("ControlWindow", "Show", nullptr));
+        menuFile->setTitle(QApplication::translate("ControlWindow", "Fi&le", nullptr));
+        menuImport->setTitle(QApplication::translate("ControlWindow", "Add", nullptr));
+        menuExport->setTitle(QApplication::translate("ControlWindow", "Export", nullptr));
+        menuScripts->setTitle(QApplication::translate("ControlWindow", "Scripts", nullptr));
     } // retranslateUi
 
 };

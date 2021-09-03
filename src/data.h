@@ -286,6 +286,16 @@ struct camera_t : object_t
     camera_t(std::string const & name_) : object_t(name_), _viewmode(PERSPECTIVE), _wireframe(false) {}
 };
 
+class destroy_functor
+{
+private:
+    std::function<void()> _f;
+public:
+    destroy_functor(std::function<void()> f_) : _f(f_){}
+
+    ~destroy_functor(){_f();}
+};
+
 struct scene_t
 {
     std::vector<camera_t> _cameras;
@@ -301,6 +311,7 @@ struct scene_t
     
     camera_t * get_camera(std::string const & name);
     object_t * get_object(std::string const & name);
+    mesh_object_t * get_mesh(std::string const & name);
     object_t & get_object(size_t index);
     texture_t* get_texture(std::string const & name);
 

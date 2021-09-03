@@ -120,6 +120,7 @@ bool OpenGLWindow::event(QEvent *event)
 
 void WorkerThread::run(){
     _window->rendering_loop();
+    delete _window;
 }
 
 void OpenGLWindow::exposeEvent(QExposeEvent *event)
@@ -149,19 +150,12 @@ void OpenGLWindow::renderNow()
     m_context->makeCurrent(this);
     render();
     m_context->swapBuffers(this);
-    if (m_animating)
-    {
-        renderLater();
-    }
+    if (m_animating){renderLater();}
 }
 
 void OpenGLWindow::setAnimating(bool animating)
 {
-    if (m_animating == animating)
-    {
-        return;
-    }
+    if (m_animating == animating){return;}
     m_animating = animating;
-    if (animating)
-        renderLater();
+    if (animating){renderLater();}
 }

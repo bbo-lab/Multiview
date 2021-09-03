@@ -102,33 +102,37 @@ bool string_to_struct< bool >::operator()(std::string const & str) const
     std::stringstream ss(str);
     if (!(ss >> erg))
     {
-        std::stringstream out;
-        out << "\"" + str + "\" not castable to " << typeid(bool).name();
-        throw std::invalid_argument(out.str());
+        throw std::invalid_argument("\"" + str + "\" not castable to " + typeid(bool).name());
     }
     return erg;
 }
 
-//TODO multithreaded?
 std::vector<std::vector<float> > parse_csv(std::istream & stream)
 {
     std::vector<std::vector<float> > res;
     std::string line;
     size_t iline = 0;
-    std::istringstream s;
+    auto split_iter = IO_UTIL::make_split_iterator("", [](char c){return c == ' ' || c == '\t';});
+    size_t last_size = 0;
     while(std::getline(stream, line))
     {
-        //std::cout << line << std::endl;
-        s.str(line);
-        s.clear();
-        std::string field;
+        split_iter.str(line);
         res.push_back(std::vector<float>());
+        std::vector<float> & back = res.back();
+        back.reserve(last_size);
         try
         {
-            while (getline(s, field,' '))
+            while (split_iter.valid())
             {
-                res.back().push_back(field == "NaN" ? std::numeric_limits<double>::quiet_NaN() : std::stof(field));
+                float f = std::numeric_limits<float>::quiet_NaN();
+                if (*split_iter != "NaN")
+                {
+                    split_iter.parse(f);
+                }
+                back.push_back(f);
+                ++split_iter;
             }
+            last_size = back.size();
         }catch(std::invalid_argument const & e)
         {
             if (iline == 0)

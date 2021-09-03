@@ -14,9 +14,7 @@ object_t::object_t(std::string const & name_):
 
 mesh_object_t::mesh_object_t(std::string const & name_, std::string const & objfile) : object_t(name_), _vbo(0)
 {
-    clock_t current_time = clock();
     _loader.LoadFile(objfile.c_str());
-    std::cout << "mesh loading time: " << float( clock() - current_time ) / CLOCKS_PER_SEC << std::endl;
 }
 
 std::ostream & operator<<(std::ostream & out, wait_for_rendered_frame_t const & wait_obj)
@@ -110,7 +108,7 @@ static unsigned long id_counter = 0;
 
 gl_texture_id::gl_texture_id(GLuint id, std::function<void(GLuint)> remove) : _id(id), _remove(remove){}
 
-gl_texture_id::~gl_texture_id(){_remove(_id);}
+gl_texture_id::~gl_texture_id(){if (_remove && _id){_remove(_id);}else{std::cerr << "Can't delete texture " << _id << std::endl;}}
 
 screenshot_handle_t::screenshot_handle_t() :
     _textureId(invalid_texture),
@@ -175,15 +173,22 @@ camera_t* scene_t::get_camera(std::string const & name)
     return nullptr;
 }
 
-object_t* scene_t::get_object(std::string const & name)
+mesh_object_t* scene_t::get_mesh(std::string const & name)
 {
-    for (object_t & obj : _objects)
+    for (mesh_object_t & obj : _objects)
     {
         if (obj._name == name)
         {
             return &obj;
         }
     }
+    return nullptr;
+}
+
+object_t* scene_t::get_object(std::string const & name)
+{
+    mesh_object_t *m = get_mesh(name);
+    if (m){return m;}
     return get_camera(name);
 }
 

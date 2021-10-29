@@ -43,6 +43,13 @@ bool contains_nan(QMatrix4x4 const & mat)
     return std::any_of(mat.constData(), mat.constData() + 16, UTIL::isnan<float>);
 }
 
+QMatrix4x3 get_affine(QMatrix4x4 const & mat)
+{
+    std::array<float, 16> values;
+    mat.copyDataTo(values.data());
+    return QMatrix4x3(values.data());
+}
+
 int take_save_lazy_screenshot(
     std::string const & filename,
     size_t width,
@@ -154,7 +161,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
 #ifdef OPENEXR
         if (handle._datatype == GL_FLOAT)
         {
-            float *pixels = reinterpret_cast<float*>(handle.get_data());
+            float *pixels = handle.get_data<float>();
             if (handle._flip){flip(pixels, handle._width * handle._channels, handle._height);}
             if (handle._channels == 1)
             {
@@ -231,7 +238,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
     }
     else if (ends_with(filename, ".png") && handle._datatype == GL_UNSIGNED_BYTE)
     {
-        uint8_t *pixels = reinterpret_cast<uint8_t*>(handle.get_data());
+        uint8_t *pixels = handle.get_data<uint8_t>();
         if (handle._flip){flip(pixels, handle._width * handle._channels, handle._height);}
         while(true){
             try{
@@ -250,7 +257,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
     }
     else
     {
-        uint8_t *pixels = reinterpret_cast<uint8_t*>(handle.get_data());
+        uint8_t *pixels = handle.get_data<uint8_t>();
         if (handle._flip)
         {
             flip(pixels, handle._width * handle._channels, handle._height);

@@ -71,8 +71,6 @@ void screenshot_handle_t::set_state(screenshot_state state)
     _cv.notify_all();
 }
 
-void* screenshot_handle_t::get_data(){return _data.load();}
-
 void screenshot_handle_t::wait_until(screenshot_state state)
 {
     std::unique_lock<std::mutex> lck(_mtx);
@@ -207,7 +205,6 @@ void pending_task_t::set(PendingFlag flag)
 void pending_task_t::unset(PendingFlag flag)
 {
     std::lock_guard<std::mutex> g(_mutex);
-    std::cout << "Unset " << _flags << ' ' << flag << std::endl;
     _flags = _flags & ~flag;
     _cond_var.notify_all();
 }
@@ -224,7 +221,6 @@ void pending_task_t::wait_unset(PendingFlag flag)
 {
     std::unique_lock<std::mutex> lck(_mutex);
     if (!(this->_flags & flag)){return;}
-    std::cout << "Has to wait for " << this->_flags << ' ' << flag << ' ' << this->_description << std::endl;
     _cond_var.wait(lck, [this, flag]() {return !(this->_flags & flag); });
 }
 
@@ -245,22 +241,11 @@ bool pending_task_t::is_deletable() const
 
 void exec_env::clean_impl()
 {
-    auto write = _pending_tasks.begin();
-    for (auto read = _pending_tasks.begin(); read != _pending_tasks.end(); ++read)
-    {
-        if ((*read)->is_deletable())
-        {
-            delete *read;
-        }
-        else
-        {
-            *write = *read;
-            ++write;
-        }
-    }
-    std::cout << "clean (" << this << ") "<< _pending_tasks.size() << "->" << std::distance(_pending_tasks.begin(), write) << std::endl;
-    //std::for_each(write, _pending_tasks.end(), UTIL::delete_functor);
-    _pending_tasks.erase(write, _pending_tasks.end());
+    _pending_tasks.erase(std::remove_if(_pending_tasks.begin(), _pending_tasks.end(), [](pending_task_t *& task){
+        bool deletable = task->is_deletable();
+        if (deletable){delete task;}
+        return deletable;
+    }), _pending_tasks.end());
 }
 
 void exec_env::clean()

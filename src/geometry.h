@@ -30,18 +30,28 @@ SOFTWARE.
 
 template <typename T, size_t N>
 struct matharray : std::array<T,N>{
-    T dot() const{
-        auto iter = this->cbegin();
-        T res = *iter * *iter;
-        while(++iter != this->cend())
-        {
-            res += *iter * *iter;
-        }
-        return res;
-    }
+    T dot() const;
     
-    T norm() const {return sqrt(dot());}
+    template <typename... Args>
+    inline matharray(Args &&... args) : std::array<T,N>({T(std::forward<Args>(args))...}) {}
+    
+    T norm() const;
 };
+
+template <typename T, size_t N>
+T matharray<T,N>::dot() const
+{
+    auto iter = this->cbegin();
+    T res = *iter * *iter;
+    while(++iter != this->cend())
+    {
+        res += *iter * *iter;
+    }
+    return res;
+}
+
+template <typename T, size_t N>
+T matharray<T,N>::norm() const{return sqrt(dot());}
 
 template <typename T, size_t N>
 bool operator==(const matharray <T, N>& lhs, const matharray<T,N> & rhs)
@@ -77,6 +87,21 @@ T dot(matharray<T,N> const & lhs, matharray<T,N> const & rhs)
     return res;
 }
 
+template <typename T, size_t N>
+T distQ(matharray<T,N> const & lhs, matharray<T,N> const & rhs)
+{
+    auto liter = lhs.cbegin();
+    auto riter = rhs.cbegin();
+    T res = *liter - *riter;
+    res *= res;
+    while(++liter != lhs.cend())
+    {
+        auto tmp = *liter - *++riter;
+        res += tmp * tmp;
+    }
+    return res;
+}
+
 struct triangle_t : std::array<uint32_t, 3>{};
 
 template <typename T>
@@ -100,8 +125,8 @@ template<typename T> T const & vec2_t<T>::y() const{return (*this)[1];}
 template<typename T> T & vec2_t<T>::x(){return (*this)[0];}
 template<typename T> T & vec2_t<T>::y(){return (*this)[1];}
 
-template<typename T> vec2_t<T>::vec2_t(){x() = 0.0f;y() = 0.0f;}
-template<typename T> vec2_t<T>::vec2_t(T x_, T y_){x() = x_;y() = y_;}
+template<typename T> vec2_t<T>::vec2_t(){}
+template<typename T> vec2_t<T>::vec2_t(T x_, T y_) : matharray<T,2>({x_,y_}){}
     
 vec2f_t operator+(const vec2f_t& lhs, const vec2f_t& rhs);
 vec2f_t operator-(const vec2f_t& lhs, const vec2f_t& rhs);
@@ -113,20 +138,32 @@ struct vec3_t : matharray<T, 3>
     inline const T & x() const;
     inline const T & y() const;
     inline const T & z() const;
-    
+
     inline T & x();
     inline T & y();
     inline T & z();
-    
+
     inline vec3_t<T> operator -() const;
 
-    inline vec3_t(T x_, T y_, T z_);
-    inline vec3_t(T init_);
     inline vec3_t();
+    inline vec3_t(T init_);
+    inline vec3_t(T x_, T y_, T z_);
+
+    inline vec3_t<T> &normalize();
+
+    template <typename V> vec3_t<V> convert_normalized() const;
 };
+
+template <typename T, typename V> vec3_t<V> convert_vector_normalized(vec3_t<T> const & v){return vec3_t<V>(v[0] * std::numeric_limits<V>::max(),v[1] * std::numeric_limits<V>::max(),v[2] * std::numeric_limits<V>::max());}  
+template <typename T> vec3_t<T> & vec3_t<T>::normalize(){T div = this->norm();x()/=div; y()/=div; z()/=div; return *this;}
 
 typedef vec3_t<float> vec3f_t;
 typedef vec3_t<uint16_t> vec3us_t;
+typedef vec3_t<int16_t> vec3s_t;
+
+template <typename T>
+template <typename V> 
+vec3_t<V> vec3_t<T>::convert_normalized() const{return convert_vector_normalized<T,V>(*this);}
 
 template <typename T>T const & vec3_t<T>::x() const{return (*this)[0];}
 template <typename T>T const & vec3_t<T>::y() const{return (*this)[1];}
@@ -140,27 +177,9 @@ template <typename T>vec3_t<T> operator-(const vec3_t<T>& lhs, const vec3_t<T>& 
 template <typename T>vec3_t<T>  vec3_t<T>::operator-() const{return vec3_t<T> (-x(), -y(), -z());}
 //template <typename T>vec3_t<T> vec3_t<T>::operator-(vec3_t<T> const & rhs) const{return vec3_t<T>(x() - rhs.x(), y() - rhs.y(), z() - rhs.z());}
 
-template <typename T>
-vec3_t<T>::vec3_t(T x_, T y_, T z_)
-{
-    x() = x_;
-    y() = y_;
-    z() = z_;
-}
-
-template <typename T>
-vec3_t<T>::vec3_t(T init){
-    x() = init;
-    y() = init;
-    z() = init;
-}
-
-template <typename T>
-vec3_t<T>::vec3_t(){
-    x() = 0;
-    y() = 0;
-    z() = 0;
-}
+template <typename T> vec3_t<T>::vec3_t(){}
+template <typename T> vec3_t<T>::vec3_t(T init): matharray<T,3>({init, init, init}){}
+template <typename T> vec3_t<T>::vec3_t(T x_, T y_, T z_) : matharray<T,3>({x_,y_,z_}){}
 
 vec3f_t operator+(const vec3f_t& lhs, const vec3f_t& rhs);
 //vec3f_t operator-(const vec3f_t& lhs, const vec3f_t& rhs);
@@ -215,11 +234,22 @@ struct scale_t : std::array<float, 3>
     scale_t();
 };
 
-rotation_t interpolate(rotation_t const & a, rotation_t const & b, float value);
+template <typename T>
+T lerp(T const & a, T const & b, float t)
+{
+    T res = a;
+    res *= (1 - t);
+    return res += t * b;
+}
 
-//rotation_t interpolate(rotation_t const & a, rotation_t const & b, float value);
+template <>
+rotation_t lerp(rotation_t const & a, rotation_t const & b, float t);
 
-vec3f_t interpolate(vec3f_t const & a, vec3f_t const & b, float value);
+template<typename T>
+typename std::enable_if<std::is_integral<T>::value>::type lerp(T a, T b, float t)
+{
+    return a + t * (b - a);
+}
 
 template <typename T, size_t N>
 std::ostream & operator << (std::ostream & out, matharray<T,N> const & array)
@@ -255,7 +285,7 @@ T interpolated(std::map<size_t, T> const & map, size_t frame)
     //auto up = map.upper_bound(frame);
     float value = static_cast<float>(frame - low->first) / (up->first - low->first);
     //std::cout << value << '=' << '(' << frame  << '-' << low->first << ") / (" << up->first << '-'<< low->first << ')'<< std::endl;
-    return interpolate(low->second, up->second, value);
+    return lerp(low->second, up->second, value);
 }
 
 //vec3f_t smoothed(std::map<size_t, vec3f_t> const & map, size_t frame, size_t smoothing);

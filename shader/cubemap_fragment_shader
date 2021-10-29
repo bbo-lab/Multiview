@@ -1,13 +1,13 @@
 #version 330
 
-in vData
+uniform sampler2D mapKd;
+uniform int objid;
+in fData
 {
     highp vec3 flow;
     highp vec3 fpos;
-    highp vec2 texCoordV;
-}vertex;
-uniform sampler2D mapKd;
-uniform int objid;
+    vec2 texCoordV;
+}frag; 
 
 //layout(early_fragment_tests) in;
 
@@ -17,9 +17,9 @@ layout(location = 2) out float posout;
 layout(location = 3) out float idout;
 
 void main() {
-    colout = texture2D(mapKd, vertex.texCoordV);
-    highp float ilen = length(vertex.fpos);
-    flowout = vertex.flow/ilen;
+    colout = texture2D(mapKd, frag.texCoordV);
+    highp float ilen = length(frag.fpos);
+    flowout = frag.flow/ilen;
     posout = ilen;
     idout = float(objid)/0xFF;
 };

@@ -45,7 +45,7 @@ struct session_t
     bool            _show_arrows = true;
     bool            _show_framelists = true;
     bool            _debug = false;
-    bool            _approximated = false;
+    coordinate_system_t _coordinate_system = COORDINATE_SPHERICAL_CUBEMAP_MULTIPASS;
     bool            _show_rendered_visibility = true;
     bool            _depth_testing = true;
     float           _depth_scale = 1;
@@ -56,14 +56,13 @@ struct session_t
     size_t          _frames_per_second = 60;
     int             _play = 1;
     int             _m_frame;
-    viewmode_t      _viewmode = EQUIDISTANT;
     depthbuffer_size_t _depthbuffer_size = DEPTHBUFFER_16_BIT;
     scene_t         _scene;
     std::vector<SessionUpdateType> _scene_updates;
     std::vector<std::function<void(SessionUpdateType)>* >_updateListener;
-    std::string _screenshot;
-    bool        _exit_program = false;
-    size_t _rendered_frames;
+    std::string     _screenshot;
+    bool            _exit_program = false;
+    size_t          _rendered_frames;
     std::vector<wait_for_rendered_frame_t*> _wait_for_rendered_frame_handles;
 
     std::vector<named_image> _images;

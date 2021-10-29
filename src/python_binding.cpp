@@ -2,11 +2,6 @@
 #include <iostream>
 #include "session.h"
 
-void api_call()
-{
-     std::cout << "API call" << std::endl;
-}
-
 namespace bp = boost::python;
 
 /*
@@ -20,10 +15,9 @@ namespace bp = boost::python;
     size_t          _frames_per_step = 1;
     size_t          _frames_per_second = 60;
 */
-    
+
 BOOST_PYTHON_MODULE(Multiview)
 {
-    bp::def("api_call", api_call);
     bp::enum_<SessionUpdateType>("SessionUpdateType")
         .value("update_none",       UPDATE_NONE)
         .value("update_animating",  UPDATE_ANIMATING)
@@ -36,6 +30,38 @@ BOOST_PYTHON_MODULE(Multiview)
         .value("redraw_always",     REDRAW_ALWAYS)
         .value("redraw_automatic",  REDRAW_AUTOMATIC)
         .value("redraw_manual",     REDRAW_MANUAL);
+
+    bp::enum_<coordinate_system_t>("CoordinateSystem")
+        .value("spherical_approximated", COORDINATE_SPHERICAL_APPROXIMATED)
+        .value("spherical_multipass",    COORDINATE_SPHERICAL_CUBEMAP_MULTIPASS)
+        .value("spherical_singlepass",   COORDINATE_SPHERICAL_CUBEMAP_SINGLEPASS);
+
+    bp::enum_<screenshot_task>("ScreenshotTask")
+        .value("take_screenshot",       TAKE_SCREENSHOT)
+        .value("save_texture",          SAVE_TEXTURE)
+        .value("render_to_texture",     RENDER_TO_TEXTURE);
+
+    bp::enum_<screenshot_state>("ScreenshotState")
+        .value("screenshot_state_inited", screenshot_state_inited)
+        .value("screenshot_state_queued",            screenshot_state_queued)
+        .value("screenshot_state_rendered_texture",  screenshot_state_rendered_texture)
+        .value("screenshot_state_rendered_buffer",   screenshot_state_rendered_buffer)
+        .value("screenshot_state_copied",            screenshot_state_copied)
+        .value("screenshot_state_saved",             screenshot_state_saved)
+        .value("screenshot_state_error",             screenshot_state_error);
+
+    bp::class_<screenshot_handle_t, boost::noncopyable>("ScreenshotHandle")
+        .add_property("texture",        &screenshot_handle_t::_texture)
+        .add_property("camera",         &screenshot_handle_t::_camera)
+        .add_property("prerendering",   &screenshot_handle_t::_prerendering)
+        .add_property("viewtype_t",     &screenshot_handle_t::_type)
+        .add_property("flip",           &screenshot_handle_t::_flip)
+        .add_property("width",          &screenshot_handle_t::_width)
+        .add_property("height",         &screenshot_handle_t::_height)
+        .def("wait_until",              &screenshot_handle_t::wait_until)
+        .def("get_data_f",              &screenshot_handle_t::copy_data<float>)
+        .def("get_data_b",              &screenshot_handle_t::copy_data<uint8_t>)
+        .def("get_data_s",              &screenshot_handle_t::copy_data<uint16_t>);
 
     bp::class_<session_t, boost::noncopyable>("Session")
         .add_property("diffbackward",   &session_t::_diffbackward,   &session_t::set<int,   &session_t::_diffbackward,   UPDATE_SESSION>)
@@ -53,11 +79,9 @@ BOOST_PYTHON_MODULE(Multiview)
         .add_property("show_depth",     &session_t::_show_depth,     &session_t::set<bool,  &session_t::_show_depth,     UPDATE_SESSION>)
         .add_property("show_curser",    &session_t::_show_curser,    &session_t::set<bool,  &session_t::_show_curser,    UPDATE_SESSION>)
         .add_property("show_framelists",&session_t::_show_framelists,&session_t::set<bool,  &session_t::_show_framelists,UPDATE_SESSION>)
-        .add_property("show_visibility",&session_t::_show_rendered_visibility,&session_t::set<bool,  &session_t::_show_rendered_visibility,UPDATE_SESSION>)
         .add_property("depth_testing",  &session_t::_depth_testing,  &session_t::set<bool,  &session_t::_depth_testing,  UPDATE_SESSION>)
         .add_property("depth_scale",    &session_t::_depth_scale,    &session_t::set<float, &session_t::_depth_scale,    UPDATE_SESSION>)
         .add_property("frame",          &session_t::_m_frame,        &session_t::set<int,   &session_t::_m_frame,        UPDATE_SESSION>)
-        .add_property("approximated",   &session_t::_approximated,   &session_t::set<bool,  &session_t::_approximated,   UPDATE_SESSION>)
         .add_property("fov",            &session_t::_fov,            &session_t::set<float, &session_t::_fov,            UPDATE_SESSION>)
         .add_property("preresolution",  &session_t::_preresolution,  &session_t::set<size_t,&session_t::_preresolution,  UPDATE_SESSION>)
         .add_property("loglevel",       &session_t::_loglevel,       &session_t::set<size_t,&session_t::_loglevel,       UPDATE_NONE>)
@@ -68,6 +92,8 @@ BOOST_PYTHON_MODULE(Multiview)
         .add_property("culling",        &session_t::_culling,        &session_t::set<size_t,&session_t::_culling,        UPDATE_SESSION>)
         .add_property("play",           &session_t::_play,           &session_t::set<int,   &session_t::_play,           UPDATE_SESSION>)
         .add_property("animating",      &session_t::_animating,      &session_t::set<RedrawScedule,&session_t::_animating,UPDATE_NONE>)
+        .add_property("show_visibility",&session_t::_show_rendered_visibility,&session_t::set<bool,  &session_t::_show_rendered_visibility,UPDATE_SESSION>)
+        .add_property("coordinate_system",&session_t::_coordinate_system,   &session_t::set<coordinate_system_t,  &session_t::_coordinate_system,   UPDATE_SESSION>)
         .def("update_session", &session_t::scene_update);
 
     bp::class_<object_t, boost::noncopyable>("Object", bp::no_init)
@@ -84,6 +110,7 @@ BOOST_PYTHON_MODULE(Multiview)
     bp::class_<scene_t, boost::noncopyable>("Scene")
         .def("get_camera",  &scene_t::get_camera,bp::return_value_policy<bp::reference_existing_object>())
         .def("get_mesh",    &scene_t::get_mesh,bp::return_value_policy<bp::reference_existing_object>());
+//        .def("queue_screenhot", &scene_t::queue_handle);
 }
 
 namespace PYTHON{

@@ -5,11 +5,10 @@
 TEMPLATE = app
 TARGET = Multiview
 
-QMAKE_CXXFLAGS+= -fopenmp -g
+QMAKE_CXXFLAGS+= -fopenmp -g -pedantic -Wextra -Wall
 QMAKE_LFLAGS +=  -fopenmp -g
 
 INCLUDEPATH += .
-OBJECTS_DIR = ../object
 
 CONFIG += c++17
 QMAKE_CXXFLAGS += -std=c++17
@@ -50,7 +49,6 @@ SOURCES += src/control_window.cpp \
            src/image_io.cpp \
            src/image_util.cpp \
            src/io_util.cpp \
-           src/main.cpp \
            src/OBJ_Loader.cpp \
            src/openglwindow.cpp \
            src/qt_util.cpp \
@@ -63,5 +61,34 @@ SOURCES += src/control_window.cpp \
            src/rendering_view.cpp\
            src/qt_gl_util.cpp\
            src/python_binding.cpp
-LIBS +=  -L/usr/include/x86_64-linux-gnu/python3.8/ -L/usr/include/python3.8/ -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf -ldl -lboost_system -lboost_filesystem -lQt5Widgets -lstdc++fs -lpng -lEGL -lpython3.8 -lboost_graph -lboost_numpy38 -lboost_python38 -lboost_system -lboost_filesystem
+LIBS +=  -L/usr/include/x86_64-linux-gnu/python3.8/ -L/usr/include/python3.8/ -lImath -lHalf -lIex -lIexMath -lIlmThread -lIlmImf -ldl -lboost_system -lboost_filesystem -lQt5Widgets -lstdc++fs -lpng -lEGL -lpython3.8 -lboost_graph -lboost_numpy38 -lboost_python38 -lboost_system -lboost_filesystem  -lboost_unit_test_framework
 INCLUDEPATH += /usr/include/python3.8/ /usr/include/x86_64-linux-gnu/python3.8/
+
+Release {
+    TARGET = Multiview
+    SOURCES += src/main.cpp    
+    OBJECTS_DIR = ./object
+}
+
+Debug {
+    TARGET = Multiview_debug
+    SOURCES += src/main.cpp
+    QMAKE_CXXFLAGS+=-fsanitize=address -static-libasan
+    LIBS+=-fsanitize=address -static-libasan
+    OBJECTS_DIR = ./object_debug
+}
+
+Test {
+    TARGET = unit_test
+    SOURCES += src/test_main.cpp
+    HEADERS += src/io_util_test.h src/OBJ_Loader_test.h src/geometry_test.h
+    QMAKE_CXXFLAGS+=-fsanitize=address -static-libasan
+    LIBS+=-fsanitize=address -static-libasan
+    OBJECTS_DIR = ./object_debug
+}
+
+Library {
+    TARGET = Multiview.so
+    OBJECTS_DIR = ./object
+    LIBS+=--shared -fPIC
+}

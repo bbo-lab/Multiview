@@ -202,7 +202,7 @@ std::string getGlErrorString()
 
 void setupTexture(GLenum target, std::shared_ptr<gl_texture_id> texture, GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type)
 {
-    glBindTexture(target, *texture.get());
+    glBindTexture(target, *texture);
     glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -243,7 +243,7 @@ void render_map(std::shared_ptr<gl_texture_id> cubemap, remapping_shader_t & rem
 {
     glActiveTexture(GL_TEXTURE0);
 
-    glBindTexture(dynamic_cast<remapping_spherical_shader_t*>(&remapping_shader) ?  GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D, *cubemap.get());
+    glBindTexture(dynamic_cast<remapping_spherical_shader_t*>(&remapping_shader) ?  GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D, *cubemap);
     glUniform1i(remapping_shader._texAttr, 0);
     
     glVertexAttribPointer(remapping_shader._posAttr, 2, GL_FLOAT, GL_FALSE, 0, g_quad_vertex_buffer_data);
@@ -267,14 +267,14 @@ void render_view(remapping_shader_t & remapping_shader, render_setting_t const &
     activate_render_settings(remapping_shader, render_setting);
     glActiveTexture(GL_TEXTURE1);
     GLenum target = dynamic_cast<remapping_spherical_shader_t*>(&remapping_shader) ? GL_TEXTURE_CUBE_MAP : GL_TEXTURE_2D;
-    glBindTexture(target, *render_setting._position_texture.get());
+    glBindTexture(target, *render_setting._position_texture);
     glUniform1i(remapping_shader._positionMap, 1);
     for (size_t i = 0; i < render_setting._other_views.size(); ++i)
     {
         other_view_information_t const & other = render_setting._other_views[i];
         glUniform(remapping_shader._transformCam[i], get_affine(other._world_to_camera));
         glActiveTexture(GL_TEXTURE2 + i);
-        glBindTexture(target, *other._position_texture.get());
+        glBindTexture(target, *other._position_texture);
         glUniform1i(remapping_shader._positionMaps[i], 2 + i);
     }
     glUniform(remapping_shader._numOverlays, static_cast<GLint>(render_setting._other_views.size()));
@@ -302,7 +302,7 @@ GLenum get_format(size_t channels)
     return channel_colors[channels];
 }
 
-void dmaTextureCopy(screenshot_handle_t & current, bool debug)
+void RenderingWindow::dmaTextureCopy(screenshot_handle_t & current, bool debug)
 {
     if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
     assert(current._state == screenshot_state_rendered_texture);
@@ -310,34 +310,59 @@ void dmaTextureCopy(screenshot_handle_t & current, bool debug)
     if (current._prerendering != std::numeric_limits<size_t>::max())
     {
         textureType = GL_TEXTURE_CUBE_MAP_POSITIVE_X + current._prerendering;
-        glBindTexture(GL_TEXTURE_CUBE_MAP, *current._textureId.get());
+        glBindTexture(GL_TEXTURE_CUBE_MAP, *current._textureId);
     }
     else
     {
-        glBindTexture(GL_TEXTURE_2D, *current._textureId.get());
+        glBindTexture(GL_TEXTURE_2D, *current._textureId);
     }
     if (current._channels == 0) {current._channels = get_channels(current._type);}
-    GLuint pbo_userImage;
-    glGenBuffers(1, &pbo_userImage);
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo_userImage);
+    std::shared_ptr<gl_buffer_id> pbo_userImage;
+    gen_buffers(1, &pbo_userImage);
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, *pbo_userImage);
     glBufferData(GL_PIXEL_PACK_BUFFER, current.size(), 0, GL_STREAM_READ);
     if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
 
     glClampColor(GL_CLAMP_READ_COLOR, GL_FALSE);
-    glGetTexImage(textureType, 0, get_format(current._channels), current._datatype, 0);
+    glGetTexImage(textureType, 0, get_format(current._channels), current.get_datatype(), 0);
     current._bufferAddress = pbo_userImage;
     current.set_state(screenshot_state_rendered_buffer);
     if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
 }
 
 void RenderingWindow::delete_texture(GLuint tex){
-    if (std::this_thread::get_id() == _context_id)
-    {
+    if (std::this_thread::get_id() == _context_id){
         glDeleteTextures(1, &tex);
-    }
-    else
-    {
+    }else{
+        std::lock_guard<std::mutex> lockGuard(_delete_mtx);
         _to_remove_textures.emplace_back(tex);
+    }
+}
+
+void RenderingWindow::delete_buffer(GLuint buf){
+    if (std::this_thread::get_id() == _context_id){
+        glDeleteBuffers(1, &buf);
+    }else{
+        std::lock_guard<std::mutex> lockGuard(_delete_mtx);
+        _to_remove_buffers.emplace_back(buf);
+    }
+}
+
+void RenderingWindow::delete_framebuffer(GLuint buf){
+    if (std::this_thread::get_id() == _context_id){
+        glDeleteFramebuffers(1, &buf);
+    }else{
+        std::lock_guard<std::mutex> lockGuard(_delete_mtx);
+        _to_remove_framebuffers.emplace_back(buf);
+    }
+}
+
+void RenderingWindow::delete_renderbuffer(GLuint buf){
+    if (std::this_thread::get_id() == _context_id){
+        glDeleteRenderbuffers(1, &buf);
+    }else{
+        std::lock_guard<std::mutex> lockGuard(_delete_mtx);
+        _to_remove_renderbuffers.emplace_back(buf);
     }
 }
 
@@ -372,17 +397,17 @@ void RenderingWindow::render_to_texture(screenshot_handle_t & current, render_se
     assert(current._state == screenshot_state_queued);
     if (loglevel > 2){std::cout << "take screenshot " << current._camera << std::endl;}
     activate_render_settings(remapping_shader, render_setting);
-    GLuint screenshotFramebuffer = 0;
-    glGenFramebuffers(1, &screenshotFramebuffer);
-    glBindFramebuffer(GL_FRAMEBUFFER, screenshotFramebuffer);
+    std::shared_ptr<gl_framebuffer_id> screenshotFramebuffer;
+    gen_framebuffers(1, &screenshotFramebuffer);
+    glBindFramebuffer(GL_FRAMEBUFFER, *screenshotFramebuffer);
     if (current._task == TAKE_SCREENSHOT){current._textureId = create_texture(current._width, current._height, current._type);}
-    GLuint depthrenderbuffer;
-    glGenRenderbuffers(1, &depthrenderbuffer);
-    glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer);
+    std::shared_ptr<gl_renderbuffer_id> depthrenderbuffer;
+    gen_renderbuffers(1, &depthrenderbuffer);
+    glBindRenderbuffer(GL_RENDERBUFFER, *depthrenderbuffer);
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, current._width, current._height);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, *depthrenderbuffer);
 
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *current._textureId.get(), 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, *current._textureId, 0);
 
     GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
     glDrawBuffers(1, DrawBuffers);
@@ -412,8 +437,8 @@ void RenderingWindow::render_to_texture(screenshot_handle_t & current, render_se
         glDisable(GL_BLEND);
     }
     current.set_state(screenshot_state_rendered_texture);
-    glDeleteRenderbuffers(1, &depthrenderbuffer);
-    glDeleteFramebuffers(1, &screenshotFramebuffer);
+    depthrenderbuffer = nullptr;
+    screenshotFramebuffer = nullptr;
     if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
     return;
 }
@@ -498,26 +523,24 @@ std::ostream & operator << (std::ostream & out, arrow_t const & arrow)
 template <typename T>
 void copy_pixel_buffer_to_screenshot_impl(screenshot_handle_t & current, bool)
 {
-    T *pixels = new T[current.num_elements()];
     T* ptr = static_cast<T*>(glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY));
     if (!ptr){throw std::runtime_error("map buffer returned null" + getGlErrorString());}
-    std::copy(ptr, ptr + current.num_elements(), pixels);
-    current._data = pixels;
+    current.set_data(ptr, current.num_elements());
 }
 
 void copy_pixel_buffer_to_screenshot(screenshot_handle_t & current, bool debug)
 {
     if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
     assert(current._state == screenshot_state_rendered_buffer);
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, current._bufferAddress);
-    if      (current._datatype == gl_type<float>)   {copy_pixel_buffer_to_screenshot_impl<float>   (current, debug);}
-    else if (current._datatype == gl_type<uint8_t>) {copy_pixel_buffer_to_screenshot_impl<uint8_t> (current, debug);}
-    else if (current._datatype == gl_type<uint16_t>){copy_pixel_buffer_to_screenshot_impl<uint16_t>(current, debug);}
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, *current._bufferAddress);
+    GLint datatype = current.get_datatype();
+    if      (datatype == gl_type<float>)   {copy_pixel_buffer_to_screenshot_impl<float>   (current, debug);}
+    else if (datatype == gl_type<uint8_t>) {copy_pixel_buffer_to_screenshot_impl<uint8_t> (current, debug);}
+    else if (datatype == gl_type<uint16_t>){copy_pixel_buffer_to_screenshot_impl<uint16_t>(current, debug);}
     else                                            {throw std::runtime_error("Unsupported image-type");}
-    current.set_state(screenshot_state_copied);
     glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
-    glDeleteBuffers(1, &current._bufferAddress);
     current._bufferAddress = 0;
+    current.set_state(screenshot_state_copied);
 }
 
 void render_objects(
@@ -583,6 +606,7 @@ void render_objects(
         for (size_t i = 0; i < Loader.LoadedMeshes.size(); ++i)
         {
             objl::Mesh const & curMesh = Loader.LoadedMeshes[i];
+            glUniform3f(shader._colUniform, curMesh.MeshMaterial.Kd[0],curMesh.MeshMaterial.Kd[1],curMesh.MeshMaterial.Kd[2]);
             load_textures(mesh);
             QOpenGLTexture *tex = mesh._textures[curMesh.MeshMaterial.map_Kd];
             if (tex)
@@ -625,19 +649,19 @@ void setup_framebuffer(GLuint target, size_t resolution, session_t const & sessi
 {
     if (target != GL_TEXTURE_CUBE_MAP)
     {
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, *framebuffer._rendered.get(), 0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, target, *framebuffer._flow.get(), 0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, target, *framebuffer._position.get(), 0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, target, *framebuffer._index.get(), 0);
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,  target, *framebuffer._depth.get(), 0 );
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, *framebuffer._rendered, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, target, *framebuffer._flow, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, target, *framebuffer._position, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, target, *framebuffer._index, 0);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,  target, *framebuffer._depth, 0 );
     }
     else
     {
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, *framebuffer._rendered.get(), 0);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, *framebuffer._flow.get(), 0);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, *framebuffer._position.get(), 0);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, *framebuffer._index.get(), 0);
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,  *framebuffer._depth.get(), 0 );        
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, *framebuffer._rendered, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, *framebuffer._flow, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, *framebuffer._position, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, *framebuffer._index, 0);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,  *framebuffer._depth, 0 );        
     }
     GLenum drawBuffers[4] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3};
     glDrawBuffers(4, drawBuffers);
@@ -655,12 +679,20 @@ void setup_framebuffer(GLuint target, size_t resolution, session_t const & sessi
 
 void RenderingWindow::clean()
 {
+    std::lock_guard<std::mutex> lockGuard(_delete_mtx);
     glDeleteTextures(_to_remove_textures.size(), _to_remove_textures.data());
     _to_remove_textures.clear();
+    glDeleteBuffers(_to_remove_buffers.size(), _to_remove_buffers.data());
+    _to_remove_buffers.clear();
 }
 
 void RenderingWindow::render_premap(premap_t & premap, scene_t & scene)
 {
+    if (std::this_thread::get_id() != _context_id)
+    {
+        std::cerr << "Warning rendering id changed" << std::endl;
+        _context_id = std::this_thread::get_id();
+    }
     QMatrix4x4 &world_to_camera_cur = *premap._world_to_camera_cur;
     camera_t const &cam = *premap._cam;
     QMatrix4x4 world_to_camera_pre;
@@ -805,7 +837,7 @@ void RenderingWindow::render()
     scene_t & scene = session._scene;
     for (texture_t & tex : scene._textures)
     {
-        if (*tex._tex.get() == GL_INVALID_VALUE)
+        if (*tex._tex == GL_INVALID_VALUE)
         {
             std::cout << "create" << tex._width << ' ' << tex._height << std::endl;
             tex._tex = create_texture(tex._width, tex._height, tex._type);
@@ -849,7 +881,7 @@ void RenderingWindow::render()
         std::lock_guard<std::mutex> lockGuard(scene._mtx);
         if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
         if (session._loglevel > 5){std::cout << "locked scene" << std::endl;}
-        size_t num_textures = num_cams;
+        size_t num_textures = 0;
         premap_t premap;
         premap._coordinate_system= session._coordinate_system;
         premap._smoothing = session._smoothing;
@@ -863,8 +895,15 @@ void RenderingWindow::render()
         premap._diffbackward = session._diffbackward;
         premap._diffforward = session._diffforward;
         premap._fov = session._fov;
+        for (size_t i = 0; i < num_cams; ++i)
+        {
+		++num_textures;
+        }
         std::vector<rendered_framebuffer_t> framebuffer_cubemaps(num_textures);
-        gen_textures(num_textures * 5, reinterpret_cast<std::shared_ptr<gl_texture_id>* >(framebuffer_cubemaps.data()));
+        for (size_t c = 0; c < num_textures; ++c)
+        {
+            gen_textures(5, framebuffer_cubemaps[c].begin());
+        }
         if (num_views != 0)
         {
             size_t c = 0;
@@ -895,9 +934,9 @@ void RenderingWindow::render()
             world_to_camera_cur = world_to_camera_cur.inverted();
         }
         
-        GLuint FramebufferName = 0;
-        glGenFramebuffers(1, &FramebufferName);
-        glBindFramebuffer(GL_FRAMEBUFFER, FramebufferName);
+        std::shared_ptr<gl_framebuffer_id> FramebufferName = 0;
+        gen_framebuffers(1, &FramebufferName);
+        glBindFramebuffer(GL_FRAMEBUFFER, *FramebufferName);
         if (debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
         float fova = premap._fov * (M_PI / 180);
         for (size_t c = 0; c < _active_cameras.size(); ++c)
@@ -913,7 +952,7 @@ void RenderingWindow::render()
             }
         }
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        glDeleteFramebuffers(1, &FramebufferName);
+        FramebufferName = nullptr;
         glDisable(GL_CULL_FACE);
         remapping_shader_t &remapping_shader = premap._coordinate_system == COORDINATE_SPHERICAL_APPROXIMATED ? static_cast<remapping_shader_t&>(remapping_identity_shader) : static_cast<remapping_shader_t&>(remapping_spherical_shader);
         remapping_shader._program->bind();
@@ -929,30 +968,28 @@ void RenderingWindow::render()
             if (session._debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
             for (size_t icam = 0; icam < _active_cameras.size(); ++icam)
             {
-                screenshot_handle_t & current = *(new screenshot_handle_t);
-                current._task = RENDER_TO_TEXTURE;
-                current._width = arrow_lines;
-                current._height = arrow_lines;
-                current._channels = 2;
-                current._type = VIEWTYPE_FLOW;
-                current._ignore_nan = true;
-                current._datatype = GL_FLOAT;
-                current._data = nullptr;
-                current._state = screenshot_state_queued;
-                current._camera = _active_cameras[icam]->_name;
-                current._prerendering = std::numeric_limits<size_t>::max();
-                current._task = TAKE_SCREENSHOT;
-                
+                std::shared_ptr<screenshot_handle_t> current = std::make_shared<screenshot_handle_t>();
+                current->_task = RENDER_TO_TEXTURE;
+                current->_width = arrow_lines;
+                current->_height = arrow_lines;
+                current->_channels = 2;
+                current->_type = VIEWTYPE_FLOW;
+                current->_ignore_nan = true;
+                current->set_datatype(GL_FLOAT);
+                current->_state = screenshot_state_queued;
+                current->_camera = _active_cameras[icam]->_name;
+                current->_prerendering = std::numeric_limits<size_t>::max();
+                current->_task = TAKE_SCREENSHOT;
                 render_setting_t render_setting;
-                render_setting._viewtype         = current._type;
                 render_setting._transform        = world_to_camera[icam].inverted();
                 render_setting._position_texture = framebuffer_cubemaps[icam]._position;
                 render_setting._rendered_texture = framebuffer_cubemaps[icam]._flow;
+                render_setting._viewtype         = current->_type;
                 render_setting._color_transformation.scale(1, 1, 1);
                 render_setting._flipped = false;
-                render_to_texture(current, render_setting, loglevel, session._debug, remapping_shader);
-                dmaTextureCopy(current, session._debug);
-                _arrow_handles.emplace_back(&current);
+                render_to_texture(*current, render_setting, loglevel, session._debug, remapping_shader);
+                dmaTextureCopy(*current, session._debug);
+                _arrow_handles.emplace_back(current);
                 clean();
 
                 if (session._debug){print_gl_errors(std::cout, "gl error (" + std::to_string(__LINE__) + "):", true);}
@@ -1056,7 +1093,7 @@ void RenderingWindow::render()
                     {
                         current->_width = premap._resolution;
                         current->_height = premap._resolution;
-                        current->_textureId = reinterpret_cast<std::shared_ptr<gl_texture_id> * >(&framebuffer_cubemaps[icam])[current->_type];
+                        current->_textureId = framebuffer_cubemaps[icam].begin()[current->_type];
                         current->_state =  screenshot_state_rendered_texture;
                         dmaTextureCopy(*current, session._debug);
                     }
@@ -1096,8 +1133,7 @@ void RenderingWindow::render()
             curser_handle._channels = 3;
             curser_handle._type = VIEWTYPE_POSITION;
             curser_handle._ignore_nan = true;
-            curser_handle._datatype = GL_FLOAT;
-            curser_handle._data = nullptr;
+            curser_handle.set_datatype(GL_FLOAT);
             curser_handle._state = screenshot_state_inited;
             curser_handle._camera = scene._cameras[icam]._name;
             
@@ -1105,7 +1141,7 @@ void RenderingWindow::render()
             render_setting._viewtype = curser_handle._type;
             render_setting._transform = world_to_camera[icam];
             render_setting._position_texture = framebuffer_cubemaps[icam]._position;
-            render_setting._rendered_texture = reinterpret_cast<std::shared_ptr<gl_texture_id>*>(framebuffer_cubemaps.data() + icam)[curser_handle._type];
+            render_setting._rendered_texture = framebuffer_cubemaps[icam].begin()[curser_handle._type];
             render_setting._flipped = false;
             render_to_texture(curser_handle, render_setting, loglevel, session._debug, remapping_shader);
             dmaTextureCopy(curser_handle, session._debug);
@@ -1200,7 +1236,7 @@ void RenderingWindow::render()
                         }
                     }
                 }
-                delete[] data;
+                current.delete_data();
             }
         }
 
@@ -1222,7 +1258,7 @@ void RenderingWindow::render()
                 {
                     std::cout << curser_3d.x() << ' ' << curser_3d.y() << ' ' << curser_3d.z() << '\t';
                 }
-                delete[] data;
+                curser_handle.delete_data();
                 if (curser_3d.x() != 0 || curser_3d.y() != 0 || curser_3d.z() != 0)
                 {
                     for (size_t icam = 0; icam < num_cams; ++icam)
@@ -1419,7 +1455,6 @@ void RenderingWindow::render()
             return false;
         }), wait_for_rendered_frame_handles.end());
         _curser_flow.clear();
-        std::for_each(_arrow_handles.begin(), _arrow_handles.end(), UTIL::delete_functor);
         _arrow_handles.clear();
         _active_cameras.clear();
         clean();

@@ -64,7 +64,7 @@ int take_save_lazy_screenshot(
     screenshot_handle_t handle;
     queue_lazy_screenshot_handle(filename, width, height, camera, type, export_nan, prerendering, vcam, scene, handle);
     handle.wait_until(screenshot_state_copied);
-    return handle._data != 0 ? save_lazy_screenshot(filename, handle) : 1;
+    return handle.has_data() ? save_lazy_screenshot(filename, handle) : 1;
 }
 
 void queue_lazy_screenshot_handle(
@@ -85,9 +85,8 @@ void queue_lazy_screenshot_handle(
     handle._height = height;
     handle._prerendering = prerendering;
     handle._channels = ends_with(filename, ".exr") ? 0 : type == VIEWTYPE_INDEX ? 1 : 3;
-    handle._datatype = ends_with(filename, ".exr") ? GL_FLOAT : GL_UNSIGNED_BYTE;
+    handle.set_datatype(ends_with(filename, ".exr") ? GL_FLOAT : GL_UNSIGNED_BYTE);
     handle._ignore_nan = export_nan;
-    handle._data = nullptr;
     handle._state = screenshot_state_inited;
     handle._flip = true;
     handle._vcam = vcam;
@@ -122,7 +121,7 @@ bool write_png(const char* filename, size_t width, size_t height, size_t channel
     png_set_IHDR(
         png,
         info,
-        width, width,
+        width, height,
         8,
         color_type,
         PNG_INTERLACE_NONE,
@@ -131,7 +130,7 @@ bool write_png(const char* filename, size_t width, size_t height, size_t channel
     );
     png_write_info(png, info);
     png_bytep * row_pointers = new png_bytep[height];
-    for(size_t y = 0; y < height; y++) {
+    for(size_t y = 0; y < height; ++y) {
         row_pointers[y] = const_cast<uint8_t*>(data + y * width * channels);
     }
 
@@ -148,18 +147,18 @@ bool write_png(const char* filename, size_t width, size_t height, size_t channel
 }
 int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & handle)
 {
-    if (!handle._data)
+    if (!handle.has_data())
     {
         std::cout << "error no data to write" << std::endl;
         return 1;
     }
-    std::cout << "writing " << filename << ' ' << '(' << handle._width << '*' << handle._height << '*' << handle._channels << ')'<< std::endl;
+    std::cout << handle._id << " writing " << filename << ' ' << '(' << handle._width << '*' << handle._height << '*' << handle._channels << ')'<< std::endl;
     
     fs::create_directories(fs::path(filename).parent_path());
     if (ends_with(filename, ".exr"))
     {
 #ifdef OPENEXR
-        if (handle._datatype == GL_FLOAT)
+        if (handle.get_datatype() == GL_FLOAT)
         {
             float *pixels = handle.get_data<float>();
             if (handle._flip){flip(pixels, handle._width * handle._channels, handle._height);}
@@ -168,7 +167,6 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
                 while(true){
                     try{
                         writeGZ1 (filename, pixels, handle._width, handle._height);
-                        break;
                     }catch(std::system_error const & error){
                         if (error.what() == std::string("Resource temporarily unavailable"))
                         {
@@ -176,22 +174,22 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
                             continue;
                         }
                     }
+                    break;
                 }
-                delete[] pixels;
+                handle.delete_data();
             }
             else
             {
-                float *output = new float[handle._width * handle._height * handle._channels];
-                UTIL::transpose(pixels, output, handle._width * handle._height, handle._channels);
-                delete[] pixels;
+                std::unique_ptr<float[]> output(new float[handle._width * handle._height * handle._channels]);
+                UTIL::transpose(pixels, output.get(), handle._width * handle._height, handle._channels);
+                handle.delete_data();
                 switch (handle._channels){
                     case 2:
                     {
-                        float *red = output, *green = output + handle._width * handle._height;
+                        float *red = output.get(), *green = output.get() + handle._width * handle._height;
                         while(true){
                             try{
                                 writeGZ1 (filename,red,green,handle._width, handle._height);
-                                break;
                             }catch(std::system_error const & error){
                                 if (error.what() == std::string("Resource temporarily unavailable"))
                                 {
@@ -205,11 +203,10 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
                     }
                     case 3:
                     {
-                        float *red = output, *green = output + handle._width * handle._height, *blue = output + handle._width * handle._height * 2;
+                        float *red = output.get(), *green = output.get() + handle._width * handle._height, *blue = output.get() + handle._width * handle._height * 2;
                         while(true){
                             try{
                                 writeGZ1 (filename, red, green, blue, handle._width, handle._height);
-                                break;
                             }catch(std::system_error const & error){
                                 if (error.what() == std::string("Resource temporarily unavailable"))
                                 {
@@ -223,20 +220,18 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
                     }
                     default: std::cout << "Error, invalid number of channels: " << handle._channels << std::endl;break;
                 }
-                delete[] output;
             }
-            std::cout << "written " << filename << std::endl;
-            handle._data = nullptr;
+            std::cout << handle._id << " written " << filename << std::endl;
         }
         else
         {
-            std::cout << "Error, invalid datatype " << handle._datatype<< std::endl;
+            std::cout << handle._id << "Error, invalid datatype " << handle.get_datatype()<< std::endl;
         }
 #else
         std::cout << "Error Openexr not compiled" << std::endl;
 #endif
     }
-    else if (ends_with(filename, ".png") && handle._datatype == GL_UNSIGNED_BYTE)
+    else if (ends_with(filename, ".png") && handle.get_datatype() == GL_UNSIGNED_BYTE)
     {
         uint8_t *pixels = handle.get_data<uint8_t>();
         if (handle._flip){flip(pixels, handle._width * handle._channels, handle._height);}
@@ -253,7 +248,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
             }
             break;
         }
-        delete[] pixels;
+        handle.delete_data();
     }
     else
     {
@@ -275,7 +270,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
             default:type = 7;break;
         }
         size_t maxvalue;
-        switch (handle._datatype)
+        switch (handle.get_datatype())
         {
             case GL_UNSIGNED_BYTE:  maxvalue = 0xFF;    break;
             case GL_UNSIGNED_SHORT: maxvalue = 0xFFFF;  break;
@@ -304,8 +299,7 @@ int save_lazy_screenshot(std::string const & filename, screenshot_handle_t & han
         {
             std::cout << "error" << std::endl;
         }
-        delete[] pixels;
-        handle._data = nullptr;
+        handle.delete_data();
     }
 
     /*char tempstring[50];

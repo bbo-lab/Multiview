@@ -25,7 +25,6 @@ std::ostream & operator<<(std::ostream & out, wait_for_rendered_frame_t const & 
 pending_task_t & exec_env::emitPendingTask(std::string const & description)
 {
     pending_task_t *pending = new pending_task_t(PENDING_ALL, description);
-    //std::cout << "emit " << pending << std::endl;
     emplace_back(*pending);
     return *pending;
 }
@@ -61,8 +60,30 @@ void exec_env::join_impl(pending_task_t const * self, PendingFlag flag)
 std::ostream & operator << (std::ostream & out, pending_task_t const & pending){return out << pending._flags;}
 
 size_t screenshot_handle_t::num_elements()  const{return _width * _height * _channels;}
-size_t screenshot_handle_t::size()          const{return num_elements() * (_datatype == GL_FLOAT ? 4 : 1);}
+size_t screenshot_handle_t::size()          const{return num_elements() * (get_datatype() == gl_type<float> ? 4 : 1);}
 bool screenshot_handle_t::operator()()        const{return _state == screenshot_state_copied || _state == screenshot_state_error;}
+
+void screenshot_handle_t::set_datatype(GLint datatype){if (has_data()){throw std::runtime_error("Screenshot already filled with data");} _datatype = datatype;}
+
+GLint screenshot_handle_t::get_datatype() const {return _datatype;}
+
+bool screenshot_handle_t::has_data() const{return _data;}
+
+void screenshot_handle_t::delete_data()
+{
+    void* ptr = _data;
+    if (ptr)
+    {
+        if      (_datatype == gl_type<float>)   {delete[] static_cast<float*>(ptr);}
+        else if (_datatype == gl_type<uint8_t>) {delete[] static_cast<uint8_t*>(ptr);}
+        else if (_datatype == gl_type<uint16_t>){delete[] static_cast<uint16_t*>(ptr);}
+    }
+    _data = nullptr;
+}
+
+screenshot_handle_t::~screenshot_handle_t(){
+    delete_data();
+}
 
 void screenshot_handle_t::set_state(screenshot_state state) 
 {
@@ -82,7 +103,7 @@ std::ostream & operator <<(std::ostream & out, screenshot_handle_t const & task)
     screenshot_handle_t const *handle = dynamic_cast<screenshot_handle_t const *>(&task);
     if (handle)
     {
-        return out << handle->_camera << ' ' << handle->_prerendering << ' ' << handle->_type << ' ' << handle->_width << ' ' << handle->_height << ' ' << handle->_channels << ' ' << handle->_datatype << ' ' << handle->_ignore_nan << ' ' << handle->_data << ' ' << handle->_state << ' ' << handle->_bufferAddress << ' ' << handle->_textureId << std::endl;
+        return out << handle->_camera << ' ' << handle->_prerendering << ' ' << handle->_type << ' ' << handle->_width << ' ' << handle->_height << ' ' << handle->_channels << ' ' << handle->get_datatype() << ' ' << handle->_ignore_nan << ' ' << handle->_state << ' ' << handle->_bufferAddress << ' ' << handle->_textureId << std::endl;
     }
     else
     {
@@ -92,22 +113,30 @@ std::ostream & operator <<(std::ostream & out, screenshot_handle_t const & task)
 
 texture_t* scene_t::get_texture(std::string const & name)
 {
-    for (texture_t & obj : _textures)
-    {
-        if (obj._name == name)
-        {
-            return &obj;
-        }
-    }
-    return nullptr;
+    auto res = std::find_if(_textures.begin(), _textures.end(), [name](texture_t & obj){return obj._name == name;});
+    return res == _textures.end() ? nullptr : &*res;
 }
 
-static unsigned long id_counter = 0;
+std::atomic<size_t> gl_resource_id::count = 0;
 
-gl_texture_id::gl_texture_id(GLuint id, std::function<void(GLuint)> remove) : _id(id), _remove(remove){}
+gl_resource_id::gl_resource_id(GLuint id, std::function<void(GLuint)> remove) : _id(id), _remove(remove){++count;}
 
-gl_texture_id::~gl_texture_id(){if (_remove && _id){_remove(_id);}else{std::cerr << "Can't delete texture " << _id << std::endl;}}
+gl_buffer_id::gl_buffer_id              (GLuint id, std::function<void(GLuint)> remove) : gl_resource_id(id, remove){}
+gl_texture_id::gl_texture_id            (GLuint id, std::function<void(GLuint)> remove) : gl_resource_id(id, remove){}
+gl_framebuffer_id::gl_framebuffer_id    (GLuint id, std::function<void(GLuint)> remove) : gl_resource_id(id, remove){}
+gl_renderbuffer_id::gl_renderbuffer_id  (GLuint id, std::function<void(GLuint)> remove) : gl_resource_id(id, remove){}
 
+gl_resource_id::~gl_resource_id(){
+    if (_remove && _id){
+        _remove(_id);
+    }else{
+        std::cerr << "Can't delete texture " << _id << std::endl;
+    }
+    _id = 0;
+    --count;
+}
+
+std::atomic<size_t> screenshot_handle_t::id_counter = 0;
 screenshot_handle_t::screenshot_handle_t() :
     _textureId(invalid_texture),
     _data(nullptr),
@@ -136,6 +165,7 @@ screenshot_handle_t::screenshot_handle_t(
             _datatype(datatype),
             _vcam(vcam),
             _textureId(invalid_texture),
+            _data(nullptr),
             _id(id_counter++)
             {}
 
@@ -161,26 +191,14 @@ void scene_t::queue_handle(screenshot_handle_t & handle)
 
 camera_t* scene_t::get_camera(std::string const & name)
 {
-    for (camera_t & obj : _cameras)
-    {
-        if (obj._name == name)
-        {
-            return &obj;
-        }
-    }
-    return nullptr;
+    auto res = std::find_if(_cameras.begin(), _cameras.end(), [name](camera_t & obj){return obj._name == name;});
+    return res == _cameras.end() ? nullptr : &*res;
 }
 
 mesh_object_t* scene_t::get_mesh(std::string const & name)
 {
-    for (mesh_object_t & obj : _objects)
-    {
-        if (obj._name == name)
-        {
-            return &obj;
-        }
-    }
-    return nullptr;
+    auto res = std::find_if(_objects.begin(), _objects.end(), [name](mesh_object_t & obj){return obj._name == name;});
+    return res == _objects.end() ? nullptr : &*res;
 }
 
 object_t* scene_t::get_object(std::string const & name)
@@ -238,6 +256,8 @@ bool pending_task_t::is_deletable() const
 {
     return (!_future.valid() || _future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) && _flags == 0; 
 }
+
+exec_env::exec_env(std::string const & script_dir_) :_script_dir(script_dir_), num_threads_(64){}
 
 void exec_env::clean_impl()
 {

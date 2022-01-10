@@ -10,11 +10,11 @@
 #include <atomic>
 #include <vector>
 #include <condition_variable>
+#include "counting_semaphore.h"
 #include "OBJ_Loader.h"
 #include "image_util.h"
 #include "geometry.h"
 #include "gl_util.h"
-
 
 enum viewmode_t
 {
@@ -31,16 +31,41 @@ enum coordinate_system_t
     COORDINATE_SPHERICAL_APPROXIMATED, COORDINATE_SPHERICAL_CUBEMAP_SINGLEPASS, COORDINATE_SPHERICAL_CUBEMAP_MULTIPASS
 };
 
-struct gl_texture_id
+class gl_resource_id
 {
+public:
+    static std::atomic<size_t> count;
+private:
     GLuint _id;
     std::function<void(GLuint)> _remove;
-    gl_texture_id(GLuint id, std::function<void(GLuint)> remove);
+    gl_resource_id() = delete;
+public:
+    gl_resource_id(GLuint id, std::function<void(GLuint)> remove);
     operator GLuint() const { return _id; }
+
+    gl_resource_id & operator=(const gl_resource_id&) = delete;
     
-    gl_texture_id & operator=(const gl_texture_id&) = delete;
-    
-    ~gl_texture_id();
+    ~gl_resource_id();
+};
+
+class gl_buffer_id : public gl_resource_id{
+public:
+    gl_buffer_id(GLuint id, std::function<void(GLuint)> remove);
+};
+
+class gl_texture_id : public gl_resource_id{
+public:
+    gl_texture_id(GLuint id, std::function<void(GLuint)> remove);
+};
+
+class gl_framebuffer_id : public gl_resource_id{
+public:
+    gl_framebuffer_id(GLuint id, std::function<void(GLuint)> remove);
+};
+
+class gl_renderbuffer_id : public gl_resource_id{
+public:
+    gl_renderbuffer_id(GLuint id, std::function<void(GLuint)> remove);
 };
 
 static std::shared_ptr<gl_texture_id> invalid_texture = std::make_shared<gl_texture_id>(GL_INVALID_VALUE, nullptr);
@@ -53,16 +78,22 @@ struct rendered_framebuffer_t
     std::shared_ptr<gl_texture_id> _flow;
     std::shared_ptr<gl_texture_id> _index;
     
-    GLuint get(viewtype_t viewtype)
+    std::shared_ptr<gl_texture_id> get(viewtype_t viewtype)
     {
         switch(viewtype)
         {
-            case VIEWTYPE_RENDERED: return *_rendered.get();
-            case VIEWTYPE_POSITION: return *_position.get();
-            case VIEWTYPE_DEPTH:    return *_depth.get();
-            case VIEWTYPE_FLOW:     return *_flow.get();
-            case VIEWTYPE_INDEX:    return *_index.get();
+            case VIEWTYPE_RENDERED: return _rendered;
+            case VIEWTYPE_POSITION: return _position;
+            case VIEWTYPE_DEPTH:    return _depth;
+            case VIEWTYPE_FLOW:     return _flow;
+            case VIEWTYPE_INDEX:    return _index;
+            default:                throw std::runtime_error("unsoppurted type " + std::to_string(viewtype));
         }
+    }
+
+    std::shared_ptr<gl_texture_id> *begin()
+    {
+        return &_rendered;
     }
 };
 
@@ -73,7 +104,7 @@ struct wait_for_rendered_frame_t
     size_t _frame;
     std::atomic<bool> _value;
     std::condition_variable _cv;
-    
+
     wait_for_rendered_frame_t() : _value(false){}
 
     wait_for_rendered_frame_t(size_t value_) :_frame(value_) {}
@@ -131,10 +162,11 @@ struct exec_env
     std::vector<pending_task_t*> _pending_tasks;
     std::string _script_dir;
     std::vector<code_control_type_t> _code_stack;
+    counting_semaphore num_threads_;
     
     exec_env(const exec_env&) = delete;
  
-    exec_env(std::string const & script_dir_) :_script_dir(script_dir_) {}
+    exec_env(std::string const & script_dir_);
     
     void clean();
     
@@ -181,8 +213,10 @@ struct texture_t
     texture_t() : _tex(invalid_texture){}
 };
 
-struct screenshot_handle_t
+class screenshot_handle_t
 {
+    static std::atomic<size_t> id_counter;
+public:
     screenshot_task _task;
     std::string _texture;
     std::string _camera;
@@ -196,23 +230,47 @@ struct screenshot_handle_t
     size_t _width;
     size_t _height;
     size_t _channels;
+private:
     GLint _datatype;
+public:
     std::vector<std::string> _vcam;
     std::shared_ptr<gl_texture_id> _textureId;
     void set_state(screenshot_state state);
     void wait_until(screenshot_state state);
     bool operator()() const;
+private:
     std::atomic<void *> _data;
-    GLuint _bufferAddress;
+public:
+    std::shared_ptr<gl_buffer_id> _bufferAddress;
     size_t _id;
+
+    void set_datatype(GLint datatype);
+
+    GLint get_datatype() const;
+
     template <typename T>
     T* get_data(){
-        if (_datatype != gl_type<T>){throw std::runtime_error("type doesn't fit");}
+        if (_datatype != gl_type<T>){throw std::runtime_error("Datatype doesn't match " + std::to_string(_datatype) + " " + std::to_string(gl_type<T>));}
         return reinterpret_cast<T*>(_data.load());
     }
+
+    template <typename T>
+    void set_data(T *ptr, size_t size)
+    {
+        delete_data();
+        if (_datatype != gl_type<T>){throw std::runtime_error("Datatype doesn't match " + std::to_string(_datatype) + " " + std::to_string(gl_type<T>));}
+        T *tmp = new T[size];
+        std::copy(ptr, ptr + size, tmp);
+        _data = tmp;
+    }
+
+    bool has_data() const;
+
+    void delete_data();
+
     template <typename T>
     std::vector<T> copy_data(){T* d = get_data<T>(); return std::vector<T>(d, d + _width * _height * _channels);}
-    
+
     screenshot_handle_t(
         std::string const & camera,
         viewtype_t type,
@@ -238,6 +296,8 @@ struct screenshot_handle_t
         std::vector<std::string> const & vcam);
     size_t num_elements() const;
     size_t size() const;
+
+    ~screenshot_handle_t();
 };
 
 std::ostream & operator <<(std::ostream & out, screenshot_handle_t const & task);
@@ -246,6 +306,7 @@ struct arrow_t
 {
     float _x0, _y0, _x1, _y1;
 };
+
 struct view_t
 {
     std::string const & _camera;
@@ -266,6 +327,7 @@ struct framelist_t
 
     framelist_t(std::string const & name_, std::vector<size_t> const & framelist_);
 };
+
 struct object_t
 {
     std::string _name;

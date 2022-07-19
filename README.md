@@ -4,8 +4,9 @@ A program which calculates different optical measures in Opengl.
 ![QMakeTest](https://github.com/PaulStahr/Multiview/actions/workflows/c-cpp.yml/badge.svg)
 
 Compile:
-You will need the following librarys:
-libopenexr-dev, libpng-dev
+On Ubuntu (tested 22.04), you will need the following librarys:
+
+    qt5-qmake qtbase5-dev libboost-all-dev libopenexr-dev libpng-dev
 
 
 For faster loading of wavefront-files clone the following repository into src/fast_float:
@@ -13,7 +14,8 @@ https://github.com/fastfloat/fast_float.git
 
 
 After compiling the program can be started with
-./Multiview (<script>)
+
+    ./Multiview (<script>)
 
 This will open the gui and run the commands of the script line by line if specified. Control can be done either by command line or by the gui. The most important commands are:
 
